@@ -8,6 +8,8 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from itsdangerous import URLSafeTimedSerializer
+from datetime import datetime
+
 
 
 
@@ -232,6 +234,114 @@ def verify_password_token(token):
         # Token doğrulama hatası durumunda None döndürme
         return None
 
+
+@app.route('/get_all_orders', methods=['GET'])
+def get_all_orders():
+    try:
+        if 'Authorization' in request.headers:
+            token = request.headers['Authorization'].split()[1]
+        else:
+            return jsonify({'error': 'Token not found'}), 401
+        user = Token.query.filter_by(token=token).first().user
+    except Exception as e:
+        print("Veritabanı hatası:", e), 500
+        return jsonify("Geçersiz kullanıcı kimliği")
+
+    if user.is_admin:
+        orders = Order.query.all()
+        order_list = [order.to_dict() for order in orders]
+        return order_list
+
+    return jsonify("Yetkisiz erişim!")
+
+
+@app.route('/get_all_by_user_mail/<int:user_id>', methods=['GET'])
+def get_orders_by_userid(user_id):
+    try:
+        if 'Authorization' in request.headers:
+            token = request.headers['Authorization'].split()[1]
+        else:
+            return jsonify({'error': 'Token not found'}), 401
+        user = Token.query.filter_by(token=token).first().user
+    except Exception as e:
+        print("Veritabanı hatası:", e), 500
+        return jsonify("Geçersiz kullanıcı kimliği")
+
+    if user.is_admin:
+        orders = Order.query.filter_by(user_id=user_id).all()
+        if not orders:
+            return jsonify("Hiç sipariş yok.")
+        order_list = [order.to_dict() for order in orders]
+        return order_list
+
+    return jsonify("Yetkisiz erişim!")
+
+
+
+@app.route('/my_orders', methods=['GET'])
+def my_orders():
+    try:
+        if 'Authorization' in request.headers:
+            token = request.headers['Authorization'].split()[1]
+        else:
+            return jsonify({'error': 'Token not found'}), 401
+        user = Token.query.filter_by(token=token).first().user
+    except Exception as e:
+        print("Veritabanı hatası:", e), 500
+        return jsonify("Geçersiz kullanıcı kimliği")
+
+
+    orders = Order.query.filter_by(user_id=user.id).all()
+    if not orders:
+        return jsonify("Hiç sipariş yok.")
+    order_list = [order.to_dict() for order in orders]
+    return order_list
+
+
+
+@app.route('/buy_products', methods=['POST'])
+def buy_products():
+    try:
+        if 'Authorization' in request.headers:
+            token = request.headers['Authorization'].split()[1]
+        else:
+            return jsonify({'error': 'Token not found'}), 401
+        user = Token.query.filter_by(token=token).first().user
+    except Exception as e:
+        print("Veritabanı hatası:", e), 500
+        return jsonify("Geçersiz kullanıcı kimliği")
+    try:
+        orders = request.json
+        for order in orders:
+            product_id = order.get('product_id')
+            quantity = order.get('quantity')
+
+            product = Product.query.get(product_id)
+            if not product:
+                return jsonify({'message': f'Ürün bulunamadı: {product_id}'}), 404
+
+            if product.stock < quantity:
+                return jsonify({'message': f'Yetersiz stok: {product.name}'}), 400
+
+            total_price = product.price * quantity
+
+            # Siparişi oluştur ve veritabanına kaydet
+            new_order = Order(
+                user_id=user.id,
+                product_id=product_id,
+                quantity=quantity,
+                order_date=datetime.now(),
+                total_price=total_price
+            )
+            db.session.add(new_order)
+
+            product.stock -= quantity
+
+        db.session.commit()  # Siparişleri veritabanına kaydet
+
+        return jsonify({'message': 'Siparişler başarıyla kaydedildi.'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == "__main__":
     app.run()
