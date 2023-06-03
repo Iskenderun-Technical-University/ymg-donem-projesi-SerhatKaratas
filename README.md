@@ -39,8 +39,10 @@ Günümüzde işletmeler satış işlemlerini arttırmak için daha geniş bir m
 2. Proje dizinine gidin: cd stok-api
 
 3. Sanal bir ortam oluşturun ve etkinleştirin:
-python3 -m venv venv
-source venv/bin/activate
+
+   python3 -m venv venv
+   
+   source venv/bin/activate
 
 4. Gerekli bağımlılıkları yükleyin: pip install -r requirements.txt
 
