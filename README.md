@@ -21,10 +21,15 @@ Günümüzde işletmeler satış işlemlerini arttırmak için daha geniş bir m
 
 ## Kullanılan Teknolojiler
 -Python: Proje, Python programlama dilinde yazılmıştır.
+
 -Flask: Flask, Python tabanlı bir web framework'üdür ve bu projede kullanılarak API'lerin oluşturulması sağlanmıştır.
+
 -Flask-CORS: Flask uygulamasında Cross-Origin Resource Sharing (CORS) desteği sağlar ve bu projede CORS ayarlarını kolaylaştırmak için kullanılmıştır.
+
 -Flask-JWT-Extended: Flask uygulamasında JSON Web Token (JWT) tabanlı kimlik doğrulama ve yetkilendirme işlemlerini sağlar.
+
 -SQLAlchemy: SQLAlchemy, Python için bir ORM (Object-Relational Mapping) aracıdır ve bu projede veritabanı işlemleri için kullanılmıştır. 
+
 -smtplib: Python ile e-posta göndermek için kullanılan bir kütüphanedir.
 
 
