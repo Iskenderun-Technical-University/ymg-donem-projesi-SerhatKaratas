@@ -51,7 +51,6 @@ def get_products_by_category(category):
 
 @app.route('/category/<int:category_id>/products', methods=['GET'])
 def get_product_by_category(category_id):            #seçilen kategoriye ait tüm ürünleri döndürür.
-
     category = Category.query.get(category_id)
     if not category:
         return jsonify({'message': 'Kategori bulunamadı'}), 404
@@ -73,18 +72,21 @@ def get_product_by_category(category_id):            #seçilen kategoriye ait t�
 
 @app.route('/category/<int:category_id>', methods=['DELETE'])
 def delete_category_api(category_id):
-    category = Category.query.get(category_id)
-    if not category:
-        return jsonify({'message': 'Kategori bulunamadı'}), 404
+    user = get_user_by_token()
+    if user.is_admin:
+        category = Category.query.get(category_id)
+        if not category:
+            return jsonify({'message': 'Kategori bulunamadı'}), 404
 
-    delete_category(category)
-    db.session.commit()
+        delete_category(category)
+        db.session.commit()
 
-    return jsonify({'message': 'Kategori başarıyla silindi'}), 200
+        return jsonify({'message': 'Kategori başarıyla silindi'}), 200
+
+    return jsonify({'message': 'Yetkisiz erişim'}), 200
 
 
-
-@app.route('/login', methods=['POST'])        # Pozitif
+@app.route('/login', methods=['POST'])       
 def login():      # kullanıcı kimlik bilgileriyle oturum açmayı sağlar
     content = request.json
     password, email = content["password"], content["email"]
@@ -109,12 +111,9 @@ def login():      # kullanıcı kimlik bilgileriyle oturum açmayı sağlar
 @jwt_required()
 def logout():
     try:
-        token = None
         if 'Authorization' in request.headers:
-            # Bearer tokeni al
             token = request.headers['Authorization'].split()[1]
         else:
-            # Token yoksa hata döndür
             return jsonify({'error': 'Token not found'}), 401
         token_obj = Token.query.filter_by(token=token).first()
         db.session.delete(token_obj)
@@ -122,6 +121,7 @@ def logout():
         return jsonify({'status': 'true', 'description': 'Logout Successfully'}), 200
     except Exception as e:
         print("Veritabanı hatası:", e), 500
+
 
 
 @app.route('/reset_password', methods=['POST'])
@@ -196,6 +196,7 @@ def reset_password():                         # Bu api şuan çalışmaz. Doğru
 
     return jsonify({'message': 'Şifre sıfırlama e-postası gönderildi'}), 200
 
+
 @app.route('/reset_password/<token>', methods=['POST'])
 def reset_password_confirm(token):
     email = verify_password_token(token)
@@ -212,10 +213,9 @@ def reset_password_confirm(token):
 
     return jsonify({'message': 'Parola başarıyla güncellendi'}), 200
 
-def generate_password_token(email):
-    serializer = URLSafeTimedSerializer('mysecretkey')  # Gizli anahtarınızı buraya girin
 
-    # Token'ı oluşturma
+def generate_password_token(email):
+    serializer = URLSafeTimedSerializer('mysecretkey')  
     token = serializer.dumps(email)
 
     return token
@@ -224,30 +224,20 @@ def generate_password_token(email):
 
 # Token'ı doğrulama işlemini gerçekleştiren fonksiyon
 def verify_password_token(token):
-    serializer = URLSafeTimedSerializer('mysecretkey')  # Gizli anahtarınızı buraya girin
+    serializer = URLSafeTimedSerializer('mysecretkey')  
 
     try:
-        # Token'ı doğrulama ve e-posta adresini geri döndürme
         email = serializer.loads(token)
         return email
     except:
-        # Token doğrulama hatası durumunda None döndürme
         return None
+
 
 
 @app.route('/get_all_orders', methods=['GET'])
 def get_all_orders():
-    try:
-        if 'Authorization' in request.headers:
-            token = request.headers['Authorization'].split()[1]
-        else:
-            return jsonify({'error': 'Token not found'}), 401
-        user = Token.query.filter_by(token=token).first().user
-    except Exception as e:
-        print("Veritabanı hatası:", e), 500
-        return jsonify("Geçersiz kullanıcı kimliği")
-
-    if user.is_admin:
+    user = get_user_by_token()
+    if user and user.is_admin:
         orders = Order.query.all()
         order_list = [order.to_dict() for order in orders]
         return order_list
@@ -255,19 +245,11 @@ def get_all_orders():
     return jsonify("Yetkisiz erişim!")
 
 
+
 @app.route('/get_all_by_user_mail/<int:user_id>', methods=['GET'])
 def get_orders_by_userid(user_id):
-    try:
-        if 'Authorization' in request.headers:
-            token = request.headers['Authorization'].split()[1]
-        else:
-            return jsonify({'error': 'Token not found'}), 401
-        user = Token.query.filter_by(token=token).first().user
-    except Exception as e:
-        print("Veritabanı hatası:", e), 500
-        return jsonify("Geçersiz kullanıcı kimliği")
-
-    if user.is_admin:
+    user = get_user_by_token()
+    if user and user.is_admin:
         orders = Order.query.filter_by(user_id=user_id).all()
         if not orders:
             return jsonify("Hiç sipariş yok.")
@@ -278,70 +260,181 @@ def get_orders_by_userid(user_id):
 
 
 
-@app.route('/my_orders', methods=['GET'])
-def my_orders():
+def get_user_by_token():
     try:
         if 'Authorization' in request.headers:
             token = request.headers['Authorization'].split()[1]
         else:
-            return jsonify({'error': 'Token not found'}), 401
+            return None
         user = Token.query.filter_by(token=token).first().user
+        return user if user else None
     except Exception as e:
         print("Veritabanı hatası:", e), 500
-        return jsonify("Geçersiz kullanıcı kimliği")
+        return None
 
 
-    orders = Order.query.filter_by(user_id=user.id).all()
-    if not orders:
-        return jsonify("Hiç sipariş yok.")
-    order_list = [order.to_dict() for order in orders]
-    return order_list
-
+@app.route('/my_orders', methods=['GET'])
+def my_orders():
+    user = get_user_by_token()
+    if user:
+        orders = Order.query.filter_by(user_id=user.id).all()
+        if not orders:
+            return jsonify("Hiç sipariş yok.")
+        order_list = [order.to_dict() for order in orders]
+        return order_list
+    return jsonify({'message': 'Token not found'}), 200
 
 
 @app.route('/buy_products', methods=['POST'])
 def buy_products():
-    try:
-        if 'Authorization' in request.headers:
-            token = request.headers['Authorization'].split()[1]
-        else:
-            return jsonify({'error': 'Token not found'}), 401
-        user = Token.query.filter_by(token=token).first().user
-    except Exception as e:
-        print("Veritabanı hatası:", e), 500
-        return jsonify("Geçersiz kullanıcı kimliği")
-    try:
-        orders = request.json
-        for order in orders:
-            product_id = order.get('product_id')
-            quantity = order.get('quantity')
+    user = get_user_by_token()
+    if user:
+        try:
+            orders = request.json
+            for order in orders:
+                product_id = order.get('product_id')
+                quantity = order.get('quantity')
 
-            product = Product.query.get(product_id)
-            if not product:
-                return jsonify({'message': f'Ürün bulunamadı: {product_id}'}), 404
+                product = Product.query.get(product_id)
+                if not product:
+                    return jsonify({'message': f'Ürün bulunamadı: {product_id}'}), 404
 
-            if product.stock < quantity:
-                return jsonify({'message': f'Yetersiz stok: {product.name}'}), 400
+                if product.stock < quantity:
+                    return jsonify({'message': f'Yetersiz stok: {product.name}'}), 400
 
-            total_price = product.price * quantity
+                total_price = product.price * quantity
 
-            # Siparişi oluştur ve veritabanına kaydet
-            new_order = Order(
-                user_id=user.id,
-                product_id=product_id,
-                quantity=quantity,
-                order_date=datetime.now(),
-                total_price=total_price
-            )
-            db.session.add(new_order)
+                new_order = Order(
+                    user_id=user.id,
+                    product_id=product_id,
+                    quantity=quantity,
+                    order_date=datetime.now(),
+                    total_price=total_price
+                )
+                db.session.add(new_order)
 
-            product.stock -= quantity
+                product.stock -= quantity
 
-        db.session.commit()  # Siparişleri veritabanına kaydet
+            db.session.commit()
 
-        return jsonify({'message': 'Siparişler başarıyla kaydedildi.'}), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+            return jsonify({'message': 'Siparişler başarıyla kaydedildi.'}), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    return jsonify({'message': 'Token not found'}), 200
+
+
+@app.route('/add_product', methods=['POST'])
+def add_product():
+    user = get_user_by_token()
+    if user and user.is_admin:
+        data = request.get_json()
+
+        name = data.get('name')
+        category_id = data.get('category_id')
+        price = data.get('price')
+        stock = data.get('stock')
+        description = data.get('description')
+        is_active = data.get('is_active', True)
+
+        new_product = Product(
+            name=name,
+            category_id=category_id,
+            price=price,
+            stock=stock,
+            description=description,
+            is_active=is_active
+        )
+        db.session.add(new_product)
+        db.session.commit()
+
+        return jsonify({'message': 'Ürün başarıyla eklendi'}), 200
+
+    return jsonify({'message': 'Yetkisiz erişim'}), 200
+
+
+@app.route('/update_product/<int:product_id>', methods=['POST'])
+def update_product(product_id):
+    user = get_user_by_token()
+    if user and user.is_admin:
+        data = request.get_json()
+
+        product = Product.query.get(product_id)
+        if not product:
+            return jsonify({'message': 'Ürün bulunamadı'}), 404
+
+        name = data.get('name')
+        category_id = data.get('category_id')
+        price = data.get('price')
+        stock = data.get('stock')
+        description = data.get('description')
+        is_active = data.get('is_active')
+
+
+        product.name = name if name else product.name
+        product.category_id = category_id if category_id else product.category_id
+        product.price = price if price else product.price
+        product.stock = stock if stock else product.stock
+        product.description = description if description else product.description
+        product.is_active = is_active if is_active is not None else product.is_active
+
+        db.session.commit()
+
+        return jsonify({'message': 'Ürün başarıyla güncellendi'}), 200
+
+    return jsonify({'message': 'Yetkisiz erişim'}), 200
+
+
+@app.route('/add_categories', methods=['POST'])
+def create_category():
+    user = get_user_by_token()
+    if user and user.is_admin:
+        data = request.json
+        name = data.get('name')
+        parent_id = data.get('parent_id')
+
+        new_category = Category(name=name, parent_id=parent_id)
+        db.session.add(new_category)
+        db.session.commit()
+
+        return jsonify({'message': 'Kategori başarıyla oluşturuldu'}), 201
+
+    return jsonify({'message': 'Yetkisiz erişim'}), 200
+
+
+@app.route('/get-child-categories', methods=['POST'])
+def get_child_categories():        # Sadece bir alt kategorileri alır.
+    parent_id = request.json['parent']
+    child_categories = Category.query.filter_by(parent_id=parent_id).all()
+    child_list = []
+    for category in child_categories:
+        category_dict = {
+            'id': category.id,
+            'name': category.name,
+            'category_id': category.parent_id
+        }
+        child_list.append(category_dict)
+
+    return jsonify({'child categories': child_list})
+
+
+@app.route('/get-all-products', methods=['GET'])
+def get_all_products():
+    products = Product.query.all()
+    product_list = []
+    for product in products:
+        product_dict = {
+            'id': product.id,
+            'name': product.name,
+            'category_id': product.category_id,
+            'price': product.price,
+            'stock': product.stock,
+            'description': product.description,
+            'is_active': product.is_active
+        }
+        product_list.append(product_dict)
+
+    return jsonify({'products': product_list})
 
 if __name__ == "__main__":
     app.run()
