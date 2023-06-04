@@ -285,6 +285,38 @@ def my_orders():
     return jsonify({'message': 'Token not found'}), 200
 
 
+@app.route('/root-categories', methods=['GET'])
+def get_root_categories():
+    categories = Category.query.filter(Category.parent_id.is_(None)).all()
+    category_list = []
+    for category in categories:
+        category_data = {
+            'id': category.id,
+            'name': category.name
+        }
+        category_list.append(category_data)
+    return jsonify(category_list)
+
+
+@app.route('/get-all-products', methods=['GET'])
+def get_all_products():
+    products = Product.query.all()
+    product_list = []
+    for product in products:
+        product_dict = {
+            'id': product.id,
+            'name': product.name,
+            'category_id': product.category_id,
+            'price': product.price,
+            'stock': product.stock,
+            'description': product.description,
+            'is_active': product.is_active
+        }
+        product_list.append(product_dict)
+
+    return jsonify({'products': product_list})
+
+
 @app.route('/buy_products', methods=['POST'])
 def buy_products():
     user = get_user_by_token()
@@ -308,7 +340,7 @@ def buy_products():
                     user_id=user.id,
                     product_id=product_id,
                     quantity=quantity,
-                    order_date=datetime.now(),
+                    order_date=datetime.datetime.now(),
                     total_price=total_price
                 )
                 db.session.add(new_order)
@@ -402,17 +434,7 @@ def create_category():
     return jsonify({'message': 'Yetkisiz erişim'}), 200
 
 
-@app.route('/root-categories', methods=['GET'])
-def get_root_categories():
-    categories = Category.query.filter(Category.parent_id.is_(None)).all()
-    category_list = []
-    for category in categories:
-        category_data = {
-            'id': category.id,
-            'name': category.name
-        }
-        category_list.append(category_data)
-    return jsonify(category_list)
+
 
 
 @app.route('/get-child-categories', methods=['POST'])
@@ -431,23 +453,17 @@ def get_child_categories():        # Sadece bir alt kategorileri alır.
     return jsonify({'child categories': child_list})
 
 
-@app.route('/get-all-products', methods=['GET'])
-def get_all_products():
-    products = Product.query.all()
-    product_list = []
-    for product in products:
-        product_dict = {
-            'id': product.id,
-            'name': product.name,
-            'category_id': product.category_id,
-            'price': product.price,
-            'stock': product.stock,
-            'description': product.description,
-            'is_active': product.is_active
-        }
-        product_list.append(product_dict)
+@app.route('/delete-products/<int:product_id>', methods=['GET'])
+def delete_product(product_id):
+    product = Product.query.get(product_id)
+    if not product:
+        return jsonify({'error': 'Ürün bulunamadı.'}), 404
 
-    return jsonify({'products': product_list})
+    product.is_active = False
+    db.session.commit()
+
+    return jsonify({'message': 'Ürün başarıyla silindi.'})
+
 
 if __name__ == "__main__":
     app.run()
