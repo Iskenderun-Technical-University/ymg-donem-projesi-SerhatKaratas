@@ -402,6 +402,19 @@ def create_category():
     return jsonify({'message': 'Yetkisiz erişim'}), 200
 
 
+@app.route('/root-categories', methods=['GET'])
+def get_root_categories():
+    categories = Category.query.filter(Category.parent_id.is_(None)).all()
+    category_list = []
+    for category in categories:
+        category_data = {
+            'id': category.id,
+            'name': category.name
+        }
+        category_list.append(category_data)
+    return jsonify(category_list)
+
+
 @app.route('/get-child-categories', methods=['POST'])
 def get_child_categories():        # Sadece bir alt kategorileri alır.
     parent_id = request.json['parent']
